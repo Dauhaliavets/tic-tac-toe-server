@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Socket, Server } from 'socket.io';
+import { IRoom, Methods, TRoomListenerArgs, Types } from './models';
 
 const PORT = 4000;
 
@@ -13,14 +14,9 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: '*',
-    methods: ['GET', 'POST'],
+    methods: [Methods.GET, Methods.POST],
   },
 });
-
-interface IRoom {
-  name: string;
-  users: string[];
-}
 
 let rooms: IRoom[] = [];
 
@@ -29,21 +25,22 @@ io.on('connection', (socket: Socket) => {
     io.to(socket.id).emit('updateRooms', rooms);
   });
 
-  socket.on('createRoom', ({ roomName }: { roomName: string }) => {
+  socket.on('createRoom', ({ roomName }: TRoomListenerArgs) => {
     rooms.push({ name: roomName, users: [socket.id] });
     socket.join(roomName);
     socket.broadcast.emit('updateRooms', rooms);
-    io.to(socket.id).emit('createdRoom', roomName);
+    io.to(socket.id).emit('createdRoom', { type: Types.X });
   });
 
-  socket.on('selectRoom', ({ roomName }: { roomName: string }) => {
+  socket.on('selectRoom', ({ roomName }: TRoomListenerArgs) => {
     const selectedRoom = rooms.findIndex((room) => room.name === roomName);
     rooms[selectedRoom].users.push(socket.id);
     socket.join(roomName);
+    io.to(socket.id).emit('joinedToRoom', { type: Types.O });
     socket.broadcast.emit('updateRooms', rooms);
   });
 
-  socket.on('leaveRoom', ({ roomName }: { roomName: string }) => {
+  socket.on('leaveRoom', ({ roomName }: TRoomListenerArgs) => {
     const indSelectedRoom = rooms.findIndex((room) => room.name === roomName);
     if (rooms[indSelectedRoom].users.length === 1) {
       rooms.splice(indSelectedRoom, 1);
@@ -51,10 +48,12 @@ io.on('connection', (socket: Socket) => {
       rooms[indSelectedRoom].users = rooms[indSelectedRoom].users.filter((user) => user !== socket.id);
     }
     socket.leave(roomName);
+    socket.to(roomName).emit('rivalLeftRoom');
     io.emit('updateRooms', rooms);
   });
 
-  socket.on('move', ({ roomName, newBoard }) => {
+  socket.on('move', ({ newBoard }) => {
+    const roomName = [...socket.rooms];
     socket.to(roomName).emit('updateGame', newBoard);
   });
 
@@ -65,6 +64,8 @@ io.on('connection', (socket: Socket) => {
         rooms.splice(indRoomIncludesUser, 1);
       } else {
         rooms[indRoomIncludesUser].users = rooms[indRoomIncludesUser].users.filter((user) => user !== socket.id);
+        const [roomName] = [...socket.rooms];
+        socket.to(roomName).emit('rivalLeftRoom');
       }
       socket.broadcast.emit('updateRooms', rooms);
     }

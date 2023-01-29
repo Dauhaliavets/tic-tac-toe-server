@@ -1,10 +1,10 @@
+import * as dotenv from 'dotenv';
+dotenv.config();
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'http';
 import { Socket, Server } from 'socket.io';
 import { IRoom, Methods, TRoomListenerArgs, Types } from './models';
-
-const PORT = 4000;
 
 const app = express();
 app.use(cors());
@@ -73,4 +73,4 @@ io.on('connection', (socket: Socket) => {
   });
 });
 
-httpServer.listen(PORT, () => console.log(`Server listen port - ${PORT}`));
+httpServer.listen(process.env.PORT, () => console.log(`Server listen port - ${process.env.PORT}`));
